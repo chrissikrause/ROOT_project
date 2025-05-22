@@ -11,6 +11,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.model_selection import StratifiedShuffleSplit, train_test_split
 from collections import Counter
 print("Packages imported sucessfully")
 
@@ -50,7 +51,7 @@ class TemporalCNN(nn.Module):
 
 
 # CSV-Datei einlesen
-df = pd.read_csv('/dss/dsshome1/01/di97rov/model_data/combined_time_series_wide.csv')
+df = pd.read_csv('/Users/christinakrause/HIWI_DLR_Forest/Data_Collection/DI_points_timeseries/combined_time_series_wide.csv')
 
 # Fehlende Werte behandeln
 df.replace(-2147483648.0, np.nan, inplace=True)
@@ -62,6 +63,9 @@ df.ffill(axis=0, inplace=True)
 time_cols = [col for col in df.columns if col.startswith('di_t')]
 df[time_cols] = df[time_cols].interpolate(axis=1).ffill(axis=1).bfill(axis=1)
 
+# Nur für zwei Klassen
+df = df[df['class'].isin([1, 2])]
+
 # Features und Labels extrahieren
 X = df[time_cols].values
 y = df['class'].values - 1  # Klassenlabels auf 0 und 1 setzen
@@ -70,32 +74,41 @@ y = df['class'].values - 1  # Klassenlabels auf 0 und 1 setzen
 scaler = StandardScaler()
 X = scaler.fit_transform(X)
 
-# Daten in Trainings- und Testsets aufteilen
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Gesamtdaten in Train+Test splitten
+X_trainval, X_test, y_trainval, y_test = train_test_split(
+    X, y, test_size=0.2, stratify=y, random_state=42)
+
+# Train+Val in Train und Val aufteilen
+X_train, X_val, y_train, y_val = train_test_split(
+    X_trainval, y_trainval, test_size=0.25, stratify=y_trainval, random_state=42)
 
 
-
-# Daten in Tensoren umwandeln
-X_train_tensor = torch.tensor(X_train, dtype=torch.float32).unsqueeze(1)  # (batch_size, channels, sequence_length)
+# Tensoren erstellen
+X_train_tensor = torch.tensor(X_train, dtype=torch.float32).unsqueeze(1)
 y_train_tensor = torch.tensor(y_train, dtype=torch.long)
+X_val_tensor = torch.tensor(X_val, dtype=torch.float32).unsqueeze(1)
+y_val_tensor = torch.tensor(y_val, dtype=torch.long)
 X_test_tensor = torch.tensor(X_test, dtype=torch.float32).unsqueeze(1)
 y_test_tensor = torch.tensor(y_test, dtype=torch.long)
 
-# DataLoader erstellen
-train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
-train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=32)
+# Datasets & Loader
+train_loader = DataLoader(TensorDataset(X_train_tensor, y_train_tensor), batch_size=32, shuffle=True)
+val_loader = DataLoader(TensorDataset(X_val_tensor, y_val_tensor), batch_size=32)
+test_loader = DataLoader(TensorDataset(X_test_tensor, y_test_tensor), batch_size=32)
 
 # Modell, Loss-Funktion und Optimierer definieren
 model = TemporalCNN(input_channels=1, num_classes=2)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
+train_losses = []
+val_losses = []
 # Training
 num_epochs = 20
 for epoch in range(num_epochs):
+    # Training
     model.train()
+    train_loss = 0
     for X_batch, y_batch in train_loader:
         outputs = model(X_batch)
         loss = criterion(outputs, y_batch)
@@ -103,147 +116,75 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        train_loss += loss.item()
+    avg_train_loss = train_loss / len(train_loader)
+    train_losses.append(avg_train_loss)
 
-    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
-
-# Modell in den Evaluierungsmodus versetzen
-model.eval()
-correct = 0
-total = 0
-
-with torch.no_grad():
-    for X_batch, y_batch in test_loader:
-        outputs = model(X_batch)
-        _, predicted = torch.max(outputs.data, 1)
-        total += y_batch.size(0)
-        correct += (predicted == y_batch).sum().item()
-
-print(f"Test Accuracy: {100 * correct / total:.2f}%")
-
-
-# Validierung
-# -------------------------------
-# 1. Klassenverteilung prüfen
-# -------------------------------
-class_counts = Counter(y)
-print("Klassenverteilung:", class_counts)
-
-# -------------------------------
-# 2. Confusion Matrix & Klassifikationsbericht
-# -------------------------------
-# Vorhersagen auf dem Testset
-model.eval()
-all_preds = []
-all_labels = []
-with torch.no_grad():
-    for X_batch, y_batch in test_loader:
-        outputs = model(X_batch)
-        _, predicted = torch.max(outputs.data, 1)
-        all_preds.extend(predicted.numpy())
-        all_labels.extend(y_batch.numpy())
-
-# Confusion Matrix
-cm = confusion_matrix(all_labels, all_preds)
-plt.figure(figsize=(6, 5))
-sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=[0, 1], yticklabels=[0, 1])
-plt.xlabel("Predicted")
-plt.ylabel("True")
-plt.title("Confusion Matrix")
-plt.savefig("/dss/dsshome1/01/di97rov/model_data/ROOT_project/output/confusion_matrix.png", dpi=300)
-
-# Klassifikationsbericht
-print("Classification Report:")
-print(classification_report(all_labels, all_preds, digits=4))
-
-# -------------------------------
-# 3. Cross-Validation (optional)
-# -------------------------------
-kfold = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-cv_scores = []
-
-for fold, (train_idx, val_idx) in enumerate(kfold.split(X, y)):
-    print(f"\nFold {fold+1}")
-    X_train_fold = torch.tensor(X[train_idx], dtype=torch.float32).unsqueeze(1)
-    y_train_fold = torch.tensor(y[train_idx], dtype=torch.long)
-    X_val_fold = torch.tensor(X[val_idx], dtype=torch.float32).unsqueeze(1)
-    y_val_fold = torch.tensor(y[val_idx], dtype=torch.long)
-
-    train_dataset = TensorDataset(X_train_fold, y_train_fold)
-    val_dataset = TensorDataset(X_val_fold, y_val_fold)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=32)
-
-    model = TemporalCNN(input_channels=1, num_classes=2)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    criterion = nn.CrossEntropyLoss()
-
-    for epoch in range(10):  # Weniger Epochen pro Fold
-        model.train()
-        for X_batch, y_batch in train_loader:
-            outputs = model(X_batch)
-            loss = criterion(outputs, y_batch)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-    # Bewertung auf Validierungsfold
+    # Validierung
     model.eval()
-    correct = 0
-    total = 0
+    val_loss = 0
+    val_correct = 0
+    val_total = 0
+
     with torch.no_grad():
         for X_batch, y_batch in val_loader:
             outputs = model(X_batch)
-            _, predicted = torch.max(outputs.data, 1)
-            total += y_batch.size(0)
-            correct += (predicted == y_batch).sum().item()
-    acc = 100 * correct / total
-    cv_scores.append(acc)
-    print(f"Validation Accuracy: {acc:.2f}%")
-
-print("\nCross-Validation Accuracy Scores:", cv_scores)
-print("Mean CV Accuracy:", sum(cv_scores)/len(cv_scores))
-
-# -------------------------------
-# 4. Trainings- und Testverlust plotten
-# -------------------------------
-train_losses = []
-test_losses = []
-
-model = TemporalCNN(input_channels=1, num_classes=2)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-criterion = nn.CrossEntropyLoss()
-
-for epoch in range(20):
-    model.train()
-    running_loss = 0.0
-    for X_batch, y_batch in train_loader:
-        outputs = model(X_batch)
-        loss = criterion(outputs, y_batch)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        running_loss += loss.item()
-    avg_train_loss = running_loss / len(train_loader)
-    train_losses.append(avg_train_loss)
-
-    # Test Loss
-    model.eval()
-    running_test_loss = 0.0
-    with torch.no_grad():
-        for X_batch, y_batch in test_loader:
-            outputs = model(X_batch)
             loss = criterion(outputs, y_batch)
-            running_test_loss += loss.item()
-    avg_test_loss = running_test_loss / len(test_loader)
-    test_losses.append(avg_test_loss)
+            val_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            val_total += y_batch.size(0)
+            val_correct += (predicted == y_batch).sum().item()
+        avg_val_loss = val_loss / len(val_loader)
+        val_losses.append(avg_val_loss)
+
+    train_loss /= len(train_loader)
+    val_loss /= len(val_loader)
+    val_accuracy = 100 * val_correct / val_total
+
+    print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_accuracy:.2f}%")
 
 # Plot
 plt.figure(figsize=(10, 5))
 plt.plot(train_losses, label="Train Loss")
-plt.plot(test_losses, label="Test Loss")
+plt.plot(val_losses, label="Validation Loss")
 plt.xlabel("Epoch")
 plt.ylabel("Loss")
-plt.title("Training & Test Loss Over Epochs")
+plt.title("Training & Validation Loss Over Epochs")
 plt.legend()
 plt.grid(True)
-plt.savefig("/dss/dsshome1/01/di97rov/model_data/ROOT_project/output/loss_epochs.png", dpi=300)
+plt.savefig("/Users/christinakrause/HIWI_DLR_Forest/ROOT_project/loss_epochs_val_test.png", dpi=300)
+
+
+# Validierung
+# Test-Set Bewertung
+model.eval()
+test_correct = 0
+test_total = 0
+all_preds = []
+all_labels = []
+
+with torch.no_grad():
+    for X_batch, y_batch in test_loader:
+        outputs = model(X_batch)
+        _, predicted = torch.max(outputs, 1)
+        test_total += y_batch.size(0)
+        test_correct += (predicted == y_batch).sum().item()
+        all_preds.extend(predicted.cpu().numpy())
+        all_labels.extend(y_batch.cpu().numpy())
+
+test_accuracy = 100 * test_correct / test_total
+print(f"Test Accuracy: {test_accuracy:.2f}%")
+
+# Klassifikationsbericht und Confusion-Matrix
+print(classification_report(all_labels, all_preds))
+cm = confusion_matrix(all_labels, all_preds)
+
+# Visualisierung
+plt.figure(figsize=(6,4))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Class 0', 'Class 1'], yticklabels=['Class 0', 'Class 1'])
+plt.xlabel('Predicted')
+plt.ylabel('True')
+plt.title('Confusion Matrix - Test Set')
+plt.tight_layout()
+plt.savefig('/Users/christinakrause/HIWI_DLR_Forest/ROOT_project/confusion_matrix_test.png')  # Da du Agg verwendest
+

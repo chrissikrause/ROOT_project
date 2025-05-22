@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
 from collections import Counter
+print("Packages imported sucessfully")
 
 class TemporalCNN(nn.Module):
     def __init__(self, input_channels, num_classes, kernel_size=3, dropout=0.2):
@@ -49,7 +50,7 @@ class TemporalCNN(nn.Module):
 
 
 # CSV-Datei einlesen
-df = pd.read_csv('/Users/christinakrause/HIWI_DLR_Forest/Data_Collection/DI_points_timeseries/combined_time_series_wide.csv')
+df = pd.read_csv('/dss/dsshome1/01/di97rov/model_data/combined_time_series_wide.csv')
 
 # Fehlende Werte behandeln
 df.replace(-2147483648.0, np.nan, inplace=True)
@@ -148,7 +149,7 @@ sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=[0, 1], yticklabe
 plt.xlabel("Predicted")
 plt.ylabel("True")
 plt.title("Confusion Matrix")
-plt.savefig("/Users/christinakrause/HIWI_DLR_Forest/ROOT_project/confusion_matrix.png", dpi=300)
+plt.savefig("/dss/dsshome1/01/di97rov/model_data/ROOT_project/output/confusion_matrix.png", dpi=300)
 
 # Klassifikationsbericht
 print("Classification Report:")
@@ -245,5 +246,5 @@ plt.ylabel("Loss")
 plt.title("Training & Test Loss Over Epochs")
 plt.legend()
 plt.grid(True)
-plt.savefig("/Users/christinakrause/HIWI_DLR_Forest/ROOT_project/loss_epochs.png", dpi=300)
+plt.savefig("/dss/dsshome1/01/di97rov/model_data/ROOT_project/output/loss_epochs.png", dpi=300)
 

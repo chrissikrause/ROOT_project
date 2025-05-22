@@ -73,7 +73,6 @@ X = scaler.fit_transform(X)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 
-
 # Daten in Tensoren umwandeln
 X_train_tensor = torch.tensor(X_train, dtype=torch.float32).unsqueeze(1)  # (batch_size, channels, sequence_length)
 y_train_tensor = torch.tensor(y_train, dtype=torch.long)
@@ -88,7 +87,8 @@ test_loader = DataLoader(test_dataset, batch_size=32)
 
 # Modell, Loss-Funktion und Optimierer definieren
 model = TemporalCNN(input_channels=1, num_classes=2)
-criterion = nn.CrossEntropyLoss()
+class_weights = torch.tensor([1.0, 5615 / 704], dtype=torch.float32)
+criterion = nn.CrossEntropyLoss(weight=class_weights)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # Training
@@ -205,45 +205,45 @@ print("Mean CV Accuracy:", sum(cv_scores)/len(cv_scores))
 # -------------------------------
 # 4. Trainings- und Testverlust plotten
 # -------------------------------
-train_losses = []
-test_losses = []
+        train_losses = []
+        test_losses = []
 
-model = TemporalCNN(input_channels=1, num_classes=2)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-criterion = nn.CrossEntropyLoss()
+        model = TemporalCNN(input_channels=1, num_classes=2)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        criterion = nn.CrossEntropyLoss()
 
-for epoch in range(20):
-    model.train()
-    running_loss = 0.0
-    for X_batch, y_batch in train_loader:
-        outputs = model(X_batch)
-        loss = criterion(outputs, y_batch)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        running_loss += loss.item()
-    avg_train_loss = running_loss / len(train_loader)
-    train_losses.append(avg_train_loss)
+        for epoch in range(20):
+            model.train()
+            running_loss = 0.0
+            for X_batch, y_batch in train_loader:
+                outputs = model(X_batch)
+                loss = criterion(outputs, y_batch)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                running_loss += loss.item()
+            avg_train_loss = running_loss / len(train_loader)
+            train_losses.append(avg_train_loss)
 
-    # Test Loss
-    model.eval()
-    running_test_loss = 0.0
-    with torch.no_grad():
-        for X_batch, y_batch in test_loader:
-            outputs = model(X_batch)
-            loss = criterion(outputs, y_batch)
-            running_test_loss += loss.item()
-    avg_test_loss = running_test_loss / len(test_loader)
-    test_losses.append(avg_test_loss)
+            # Test Loss
+            model.eval()
+            running_test_loss = 0.0
+            with torch.no_grad():
+                for X_batch, y_batch in test_loader:
+                    outputs = model(X_batch)
+                    loss = criterion(outputs, y_batch)
+                    running_test_loss += loss.item()
+            avg_test_loss = running_test_loss / len(test_loader)
+            test_losses.append(avg_test_loss)
 
-# Plot
-plt.figure(figsize=(10, 5))
-plt.plot(train_losses, label="Train Loss")
-plt.plot(test_losses, label="Test Loss")
-plt.xlabel("Epoch")
-plt.ylabel("Loss")
-plt.title("Training & Test Loss Over Epochs")
-plt.legend()
-plt.grid(True)
-plt.savefig("/Users/christinakrause/HIWI_DLR_Forest/ROOT_project/loss_epochs.png", dpi=300)
+        # Plot
+        plt.figure(figsize=(10, 5))
+        plt.plot(train_losses, label="Train Loss")
+        plt.plot(test_losses, label="Test Loss")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.title("Training & Test Loss Over Epochs")
+        plt.legend()
+        plt.grid(True)
+        plt.savefig("/Users/christinakrause/HIWI_DLR_Forest/ROOT_project/loss_epochs.png", dpi=300)
 

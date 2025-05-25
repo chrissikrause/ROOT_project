@@ -13,7 +13,7 @@ def load_and_preprocess_data(path, batch_size=32):
     df.ffill(axis=0, inplace=True)
 
     time_cols = [col for col in df.columns if col.startswith('di_t')]
-    df = df[df['class'].isin([1, 2])]
+    df = df[df['class'].isin([1, 2, 3])]
     df[time_cols] = df[time_cols].interpolate(axis=1).ffill(axis=1).bfill(axis=1)
 
     X = df[time_cols].values

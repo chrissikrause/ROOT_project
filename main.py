@@ -8,7 +8,7 @@ import torch
 
 def main():
     train_loader, val_loader, test_loader, input_length = load_and_preprocess_data("data/combined_time_series_wide.csv")
-    model = TemporalCNN(input_channels=1, num_classes=2)
+    model = TemporalCNN(input_channels=1, num_classes=3)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 

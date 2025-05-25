@@ -1,10 +1,9 @@
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from utils.early_stopping import EarlyStopping
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
+from utils.early_stopping import EarlyStopping
 
 def train_model(model, criterion, optimizer, train_loader, val_loader, input_length, num_epochs=30, log_dir="runs"):
     writer = SummaryWriter(log_dir=log_dir)

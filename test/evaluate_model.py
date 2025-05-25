@@ -27,9 +27,10 @@ def evaluate_model(model, test_loader, save_path="output/confusion_matrix_test.p
     cm = confusion_matrix(all_labels, all_preds)
 
     plt.figure(figsize=(6, 4))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Class 0', 'Class 1'], yticklabels=['Class 0', 'Class 1'])
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Ausgeräumte \n Waldflächen (1)', 'Stehendes \n Totholz (2)', 'Gesunder \n Wald (3)'], yticklabels=['Ausgeräumte \n Waldflächen (1)', 'Stehendes \n Totholz (2)', 'Gesunder \n Wald (3)'], cbar=False)
     plt.xlabel('Predicted')
     plt.ylabel('True')
     plt.title('Confusion Matrix')
     plt.tight_layout()
     plt.savefig(save_path)
+

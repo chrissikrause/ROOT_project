@@ -6,6 +6,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.tensorboard import SummaryWriter
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -14,6 +15,10 @@ from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import StratifiedShuffleSplit, train_test_split
 from collections import Counter
 print("Packages imported sucessfully")
+
+from early_stopping import EarlyStopping
+early_stopping = EarlyStopping(patience=5)
+
 
 class TemporalCNN(nn.Module):
     def __init__(self, input_channels, num_classes, kernel_size=3, dropout=0.2):
@@ -51,7 +56,7 @@ class TemporalCNN(nn.Module):
 
 
 # CSV-Datei einlesen
-df = pd.read_csv('/Users/christinakrause/HIWI_DLR_Forest/Data_Collection/DI_points_timeseries/combined_time_series_wide.csv')
+df = pd.read_csv('/dss/dsshome1/01/di97rov/model_data/combined_time_series_wide.csv')
 
 # Fehlende Werte behandeln
 df.replace(-2147483648.0, np.nan, inplace=True)
@@ -101,10 +106,14 @@ model = TemporalCNN(input_channels=1, num_classes=2)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
+writer = SummaryWriter(log_dir="/dss/dsshome1/01/di97rov/model_data/ROOT_project/runs")
+# Modellgraph loggen (optional, hilfreich beim Debugging)
+example_input = torch.randn(1, 1, X_train_tensor.shape[2])
+writer.add_graph(model, example_input)
 train_losses = []
 val_losses = []
 # Training
-num_epochs = 20
+num_epochs = 30
 for epoch in range(num_epochs):
     # Training
     model.train()
@@ -112,13 +121,14 @@ for epoch in range(num_epochs):
     for X_batch, y_batch in train_loader:
         outputs = model(X_batch)
         loss = criterion(outputs, y_batch)
-
+        train_loss += loss.item()
+        writer.add_scalar("Loss/train", loss.item(), epoch)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        train_loss += loss.item()
     avg_train_loss = train_loss / len(train_loader)
     train_losses.append(avg_train_loss)
+        
 
     # Validierung
     model.eval()
@@ -135,13 +145,20 @@ for epoch in range(num_epochs):
             val_total += y_batch.size(0)
             val_correct += (predicted == y_batch).sum().item()
         avg_val_loss = val_loss / len(val_loader)
+        early_stopping(avg_val_loss)
+        if early_stopping.early_stop:
+            print(f"Early stopping triggered at epoch {epoch}.")
+            break
         val_losses.append(avg_val_loss)
 
     train_loss /= len(train_loader)
     val_loss /= len(val_loader)
     val_accuracy = 100 * val_correct / val_total
+    writer.add_scalar("Loss/val", avg_val_loss, epoch)
+    writer.add_scalar("Accuracy/val", val_accuracy, epoch)
 
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_accuracy:.2f}%")
+writer.close()
 
 # Plot
 plt.figure(figsize=(10, 5))
@@ -152,7 +169,7 @@ plt.ylabel("Loss")
 plt.title("Training & Validation Loss Over Epochs")
 plt.legend()
 plt.grid(True)
-plt.savefig("/Users/christinakrause/HIWI_DLR_Forest/ROOT_project/loss_epochs_val_test.png", dpi=300)
+plt.savefig("/dss/dsshome1/01/di97rov/model_data/ROOT_project/output/loss_epochs_val_test.png", dpi=300)
 
 
 # Validierung
@@ -186,5 +203,5 @@ plt.xlabel('Predicted')
 plt.ylabel('True')
 plt.title('Confusion Matrix - Test Set')
 plt.tight_layout()
-plt.savefig('/Users/christinakrause/HIWI_DLR_Forest/ROOT_project/confusion_matrix_test.png')  # Da du Agg verwendest
+plt.savefig('/dss/dsshome1/01/di97rov/model_data/ROOT_project/output/confusion_matrix_test.png') 
 

@@ -8,9 +8,9 @@ from torch.utils.data import DataLoader, TensorDataset
 def load_and_preprocess_data(path, batch_size=32):
     df = pd.read_csv(path)
     df.replace(-2147483648.0, np.nan, inplace=True)
-    df.interpolate(method='linear', axis=0, inplace=True)
-    df.bfill(axis=0, inplace=True)
-    df.ffill(axis=0, inplace=True)
+    df.interpolate(method='linear', axis=1, inplace=True)
+    df.bfill(axis=1, inplace=True)
+    df.ffill(axis=1, inplace=True)
 
     time_cols = [col for col in df.columns if col.startswith('di_t')]
     df = df[df['class'].isin([1, 2, 3])]

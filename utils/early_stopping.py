@@ -5,7 +5,7 @@ class EarlyStopping:
     def __init__(self, 
                  patience=5, 
                  verbose=True, 
-                 delta=0.0, 
+                 delta=0.01, 
                  path='best_model.pth', 
                  monitor='val_acc',  # 'val_loss' oder 'val_acc'
                  trace_func=print):

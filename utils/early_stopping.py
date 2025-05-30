@@ -1,26 +1,27 @@
 import torch
 import numpy as np
-
 class EarlyStopping:
-    def __init__(self, 
-                 patience=5, 
-                 verbose=True, 
-                 delta=0.01, 
-                 path='best_model.pth', 
-                 monitor='val_acc',  # 'val_loss' oder 'val_acc'
-                 trace_func=print):
-        
+    def __init__(self, patience=7, verbose=True, delta=0.001,
+                 path='best_model.pth', monitor='val_loss', trace_func=print):
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.delta = delta
+        self.delta = delta 
         self.path = path
         self.trace_func = trace_func
         self.monitor = monitor
-        self.mode = 'max' if monitor == 'val_acc' else 'min' # for val_loss
-        self.best_val = -np.inf if self.mode == 'max' else np.inf 
+
+        if monitor == 'val_loss':
+            self.mode = 'min'
+            self.best_score = np.inf
+        elif monitor == 'val_acc':
+            self.mode = 'max'
+            self.best_score = -np.inf
+        else:
+            raise ValueError("monitor must be 'val_loss' or 'val_acc'")
+        print(self.mode)
 
     def __call__(self, current_val, model):
         score = current_val
@@ -28,22 +29,26 @@ class EarlyStopping:
         if self.best_score is None:
             self.best_score = score
             self.save_checkpoint(current_val, model)
-        elif (self.mode == 'min' and score > self.best_score - self.delta) or \
-             (self.mode == 'max' and score < self.best_score + self.delta):
-            self.counter += 1
-            self.trace_func(f"EarlyStopping counter: {self.counter} / {self.patience}")
-            if self.counter >= self.patience:
-                self.early_stop = True
+            print(f"Initial best_score set to {self.best_score:.6f}")
         else:
-            self.best_score = score
-            self.save_checkpoint(current_val, model)
-            self.counter = 0
+            print(f"Current score: {score:.6f}, Best score: {self.best_score:.6f}, Delta: {self.delta}")
+            if self.mode == 'min':
+                improved = score < self.best_score - self.delta
+            else:  # mode == 'max'
+                improved = score > self.best_score + self.delta
+
+
+            if improved:
+                self.best_score = score
+                self.save_checkpoint(current_val, model)
+                self.counter = 0
+            else:
+                self.counter += 1
+                self.trace_func(f"EarlyStopping counter: {self.counter} / {self.patience}")
+                if self.counter >= self.patience:
+                    self.early_stop = True
 
     def save_checkpoint(self, current_val, model):
         if self.verbose:
-            if self.mode == 'max':
-                self.trace_func(f"{self.monitor} improved ({self.best_val:.4f} → {current_val:.4f}). Saving model.")
-            else:
-                self.trace_func(f"{self.monitor} decreased ({self.best_val:.4f} → {current_val:.4f}). Saving model.")
+            self.trace_func(f"{self.monitor} improved. Saving model to {self.path}")
         torch.save(model.state_dict(), self.path)
-        self.best_val = current_val

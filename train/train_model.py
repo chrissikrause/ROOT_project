@@ -4,13 +4,15 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils.early_stopping import EarlyStopping
+import matplotlib.pyplot as plt
+import numpy as np
 
 def train_model(model, criterion, optimizer, train_loader, val_loader, input_length, num_epochs=30, log_dir="runs"):
     writer = SummaryWriter(log_dir=log_dir)
     input = torch.randn(1, 1, input_length)
     writer.add_graph(model, input)
 
-    early_stopping = EarlyStopping(patience=5, monitor='val_acc')
+    early_stopping = EarlyStopping(patience=5, monitor='val_loss')
     train_losses, val_losses = [], []
 
     for epoch in range(num_epochs):
@@ -23,7 +25,10 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
-            writer.add_scalar("Loss/train", loss.item(), epoch)
+        avg_train_loss = train_loss / len(train_loader)
+        train_losses.append(avg_train_loss)
+        writer.add_scalar("Loss/train", loss.item(), epoch)
+            
 
         model.eval()
         val_loss = 0
@@ -40,8 +45,11 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
                 val_correct += (predicted == y_batch).sum().item()
 
         avg_val_loss = val_loss / len(val_loader)
+        val_losses.append(avg_val_loss)
+        
         val_accuracy = 100 * val_correct / val_total        
-        early_stopping(val_accuracy, model)
+        
+        early_stopping(avg_val_loss, model) # Specify val_loss/val_accuracy here again
         if early_stopping.early_stop:
             print(f"Early stopping triggered at epoch {epoch}")
             break
@@ -50,5 +58,22 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
         writer.add_scalar("Accuracy/val", val_accuracy, epoch)
         print(f"Epoch [{epoch+1}/{num_epochs}] | Val Loss: {avg_val_loss:.4f} | Val Acc: {val_accuracy:.2f}%")
 
+        np.save("output/train_losses.npy", train_losses)
+        np.save("output/val_losses.npy", val_losses)
+
     writer.close()
+
+    # Plot train + val loss
+    plt.figure(figsize=(8,6))
+    plt.plot(range(1, len(train_losses)+1), train_losses, label='Train Loss')
+    plt.plot(range(1, len(val_losses)+1), val_losses, label='Val Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Train and Validation Loss over Epochs')
+    plt.legend()
+    plt.grid(True)
+
+    os.makedirs("output", exist_ok=True)
+    plt.savefig("output/loss_epochs_val_test.png")
+    plt.close()
     return model

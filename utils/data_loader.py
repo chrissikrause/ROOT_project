@@ -18,18 +18,39 @@ def load_and_preprocess_data(path, batch_size=32):
 
     X = df[time_cols].values
     y = df['class'].values - 1
+    point_ids = df['point_id'].values
 
     scaler = StandardScaler()
     X = scaler.fit_transform(X)
 
-    X_trainval, X_test, y_trainval, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
-    X_train, X_val, y_train, y_val = train_test_split(X_trainval, y_trainval, test_size=0.25, stratify=y_trainval, random_state=42)
+    # Split with indices to track point_ids
+    idx = np.arange(len(X))
+    idx_trainval, idx_test = train_test_split(idx, test_size=0.2, stratify=y, random_state=42)
+    idx_train, idx_val = train_test_split(idx_trainval, test_size=0.25, stratify=y[idx_trainval], random_state=42)
+
+    X_train, y_train = X[idx_train], y[idx_train]
+    X_val, y_val = X[idx_val], y[idx_val]
+    X_test, y_test = X[idx_test], y[idx_test]
+
+    point_ids_train = point_ids[idx_train]
+    point_ids_val = point_ids[idx_val]
+    point_ids_test = point_ids[idx_test]
+
 
     def to_tensor(x): return torch.tensor(x, dtype=torch.float32).unsqueeze(1)
     def to_label(y): return torch.tensor(y, dtype=torch.long)
+    def to_id(x): return torch.tensor(x, dtype=torch.long)
 
-    train_loader = DataLoader(TensorDataset(to_tensor(X_train), to_label(y_train)), batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(TensorDataset(to_tensor(X_val), to_label(y_val)), batch_size=batch_size)
-    test_loader = DataLoader(TensorDataset(to_tensor(X_test), to_label(y_test)), batch_size=batch_size)
+    print(X_train.shape)
+    print("to_tensor(X_train) shape:", to_tensor(X_train).shape)
+
+    train_dataset = TensorDataset(to_tensor(X_train), to_label(y_train), to_id(point_ids_train))
+    val_dataset   = TensorDataset(to_tensor(X_val), to_label(y_val), to_id(point_ids_val))
+    test_dataset  = TensorDataset(to_tensor(X_test), to_label(y_test), to_id(point_ids_test))
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader   = DataLoader(val_dataset, batch_size=batch_size)
+    test_loader  = DataLoader(test_dataset, batch_size=batch_size)
+
 
     return train_loader, val_loader, test_loader, X_train.shape[1]

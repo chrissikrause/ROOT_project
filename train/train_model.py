@@ -18,7 +18,7 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
     for epoch in range(num_epochs):
         model.train()
         train_loss = 0
-        for X_batch, y_batch in train_loader:
+        for X_batch, y_batch, idxs in train_loader:
             optimizer.zero_grad()
             outputs = model(X_batch)
             loss = criterion(outputs, y_batch)
@@ -36,7 +36,7 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
         val_total = 0
 
         with torch.no_grad():
-            for X_batch, y_batch in val_loader:
+            for X_batch, y_batch, idxs in val_loader:
                 outputs = model(X_batch)
                 loss = criterion(outputs, y_batch)
                 val_loss += loss.item()

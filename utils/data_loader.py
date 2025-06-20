@@ -4,17 +4,17 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import torch
 from torch.utils.data import DataLoader, TensorDataset
+import re
+
 
 def load_and_preprocess_data(path, batch_size=32):
     df = pd.read_csv(path)
     df.replace(-2147483648.0, np.nan, inplace=True)
-    df.interpolate(method='linear', axis=1, inplace=True)
-    df.bfill(axis=1, inplace=True)
-    df.ffill(axis=1, inplace=True)
 
     time_cols = [col for col in df.columns if col.startswith('di_t')]
     df = df[df['class'].isin([1, 2, 3])]
     df[time_cols] = df[time_cols].interpolate(axis=1).ffill(axis=1).bfill(axis=1)
+    print("Anzahl Zeilen nach Filter:", len(df))
 
     X = df[time_cols].values
     y = df['class'].values - 1
@@ -35,6 +35,11 @@ def load_and_preprocess_data(path, batch_size=32):
     point_ids_train = point_ids[idx_train]
     point_ids_val = point_ids[idx_val]
     point_ids_test = point_ids[idx_test]
+
+    print("X_test.shape:", X_test.shape)
+    print("y_test.shape:", y_test.shape)
+    print("point_ids_test.shape:", point_ids_test.shape)
+
 
 
     def to_tensor(x): return torch.tensor(x, dtype=torch.float32).unsqueeze(1)

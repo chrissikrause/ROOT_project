@@ -14,7 +14,19 @@ def load_and_preprocess_data(path, batch_size=32):
     time_cols = [col for col in df.columns if col.startswith('di_t')]
     df = df[df['class'].isin([1, 2, 3])]
     df[time_cols] = df[time_cols].interpolate(axis=1).ffill(axis=1).bfill(axis=1)
-    print("Anzahl Zeilen nach Filter:", len(df))
+
+
+    # Anzahl Zeilen mit mindestens einem NaN in den Zeitspalten
+    num_rows_with_nan = df[time_cols].isnull().any(axis=1).sum()
+    print(f"Anzahl Zeilen mit mindestens einem NaN: {num_rows_with_nan}")
+
+    # Optional: Anzahl Zeilen ohne NaN in den Zeitspalten
+    num_rows_without_nan = (~df[time_cols].isnull().any(axis=1)).sum()
+    print(f"Anzahl Zeilen ohne NaN: {num_rows_without_nan}")
+  
+    df = df.dropna(subset=time_cols)
+    print(f"Anzahl Zeilen nach Entfernen der NaN-Zeilen: {len(df)}")
+
 
     X = df[time_cols].values
     y = df['class'].values - 1
@@ -22,6 +34,7 @@ def load_and_preprocess_data(path, batch_size=32):
 
     scaler = StandardScaler()
     X = scaler.fit_transform(X)
+    print("X stats: min =", np.min(X), "max =", np.max(X))
 
     # Split with indices to track point_ids
     idx = np.arange(len(X))

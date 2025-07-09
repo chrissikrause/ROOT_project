@@ -22,7 +22,7 @@ def extract_time_series_from_polygons(nc_path, filepath, crs_epsg=3035):
     for idx, row in polygons_gdf.iterrows():
         polygon = row.geometry
         polygon_id = row['polygon_id']
-        class_label = row.get('class', 'unknown')
+        class_label = row.get('class', np.nan)
         flight_date = pd.to_datetime(row.get('Flight_Date', pd.NaT), errors='coerce')
 
         if pd.isna(flight_date):
@@ -40,8 +40,8 @@ def extract_time_series_from_polygons(nc_path, filepath, crs_epsg=3035):
             ts_df = di_data.to_series().reset_index(name='di')
 
             # Filter: ±6 Monate um Flight_Date
-            start_date = flight_date - pd.DateOffset(months=6)
-            end_date = flight_date + pd.DateOffset(months=6)
+            start_date = flight_date - pd.DateOffset(months=12)
+            end_date = flight_date + pd.DateOffset(months=12)
             ts_df = ts_df[(ts_df['time'] >= start_date) & (ts_df['time'] <= end_date)]
 
             if ts_df.empty:
@@ -61,7 +61,6 @@ def extract_time_series_from_polygons(nc_path, filepath, crs_epsg=3035):
 
             # Filter nur die Punkte, die im Polygon liegen
             ts_df = ts_df[ts_df['point'].apply(lambda p: polygon.contains(p))]
-
             all_time_series.append(ts_df)
 
         except Exception as e:
@@ -71,8 +70,6 @@ def extract_time_series_from_polygons(nc_path, filepath, crs_epsg=3035):
     return all_time_series
 
 def extract_time_series_from_polygon_folder(nc_path, polygon_folder, output_folder, crs_epsg=3035):
-    import os
-    import pandas as pd
 
     os.makedirs(output_folder, exist_ok=True)
     all_time_series = []
@@ -80,7 +77,7 @@ def extract_time_series_from_polygon_folder(nc_path, polygon_folder, output_fold
     for filename in os.listdir(polygon_folder):
         if filename.endswith((".gpkg", ".shp", ".geojson")):
             filepath = os.path.join(polygon_folder, filename)
-            print(f"\n🔄 Verarbeite: {filename}")
+            print(f"\nVerarbeite: {filename}")
             ts_list = extract_time_series_from_polygons(
                 nc_path=nc_path,
                 filepath=filepath,
@@ -89,15 +86,15 @@ def extract_time_series_from_polygon_folder(nc_path, polygon_folder, output_fold
             all_time_series.extend(ts_list)
 
     if not all_time_series:
-        print("⚠️ Keine gültigen Zeitreihen aus allen Dateien gefunden.")
+        print("Keine gültigen Zeitreihen aus allen Dateien gefunden.")
         return
 
-    # Long Format
+    # Long Format speichern
     final_df = pd.concat(all_time_series, ignore_index=True)
-    long_csv = os.path.join(output_folder, "all_polygons_time_series_long.csv")
+    long_csv = os.path.join(output_folder, "all_polygons_time_series_long_12months.csv")
     final_df.to_csv(long_csv, index=False)
 
-    # Wide Format
+    # Wide Format erstellen
     wide_df = final_df.pivot_table(
         index=['polygon_id', 'pixel_id', 'x', 'y', 'class'],
         columns='time_str',
@@ -108,11 +105,40 @@ def extract_time_series_from_polygon_folder(nc_path, polygon_folder, output_fold
     date_info = final_df[['polygon_id', 'Flight_Date']].drop_duplicates()
     wide_df = wide_df.merge(date_info, on='polygon_id', how='left')
 
-    wide_csv = os.path.join(output_folder, "all_polygons_time_series_wide.csv")
-    wide_df.to_csv(wide_csv, index=False)
+    # Speichern der "rohen" Wide-Tabelle (mit NaNs)
+    raw_wide_csv = os.path.join(output_folder, "all_polygons_time_series_wide_raw_12months.csv")
+    wide_df.to_csv(raw_wide_csv, index=False)
+    print(f"Wide Table (ohne Interpolation) gespeichert: {len(wide_df)} Zeilen")
 
-    print(f"✅ Gesamtverarbeitung abgeschlossen. {len(wide_df)} Pixel extrahiert.")
+    # ➤ Interpolationsteil
+    interp_df = wide_df.copy()
+    interp_df['class'] = pd.to_numeric(interp_df['class'], errors='coerce')
+    
+    # -2147483648.0 als NaN setzen
+    interp_df.replace(-2147483648.0, np.nan, inplace=True)
 
+    # Nur Klassen 1, 2, 3
+    interp_df = interp_df[interp_df['class'].isin([1, 2, 3])]
+    print("Einzigartige Klassenwerte:", interp_df['class'].unique())
+    print(len(interp_df))
+
+    # Nur DI-Zeitspalten auswählen (beginnen mit 'di_t')
+    time_cols = [col for col in interp_df.columns if col.startswith('di_t')]
+    # Interpolation entlang Zeitachsen (pro Zeile)
+    interp_df[time_cols] = interp_df[time_cols].interpolate(axis=1).ffill(axis=1).bfill(axis=1)
+
+    # Info: Zeilen mit noch NaNs
+    num_rows_with_nan = interp_df[time_cols].isnull().any(axis=1).sum()
+    print(f"Zeilen mit mind. einem NaN nach Interpolation: {num_rows_with_nan}")
+
+    # Optional: nur vollständige Zeitreihen behalten
+    interp_df = interp_df.dropna(subset=time_cols)
+    print(f"Zeilen nach Entfernen unvollständiger Zeitreihen: {len(interp_df)}")
+
+    # Speichern
+    interp_wide_csv = os.path.join(output_folder, "all_polygons_time_series_wide_interpolated_12months.csv")
+    interp_df.to_csv(interp_wide_csv, index=False)
+    print(f"Interpolierter Wide Table gespeichert.")
 
 extract_time_series_from_polygon_folder(
     nc_path="data/DI_timeseries/di_diff_biweek_42_35k.nc",

@@ -30,7 +30,11 @@ def load_and_preprocess_data(path, batch_size=32):
 
     X = df[time_cols].values
     y = df['class'].values - 1
-    point_ids = df['point_id'].values
+    # Keep pixel_id as string
+    point_ids = df['pixel_id'].astype(str)
+
+    # Convert string pixel_ids to integer-encoded labels
+    point_ids_encoded, uniques = pd.factorize(point_ids)
 
     scaler = StandardScaler()
     X = scaler.fit_transform(X)
@@ -45,9 +49,9 @@ def load_and_preprocess_data(path, batch_size=32):
     X_val, y_val = X[idx_val], y[idx_val]
     X_test, y_test = X[idx_test], y[idx_test]
 
-    point_ids_train = point_ids[idx_train]
-    point_ids_val = point_ids[idx_val]
-    point_ids_test = point_ids[idx_test]
+    point_ids_train = point_ids_encoded[idx_train]
+    point_ids_val = point_ids_encoded[idx_val]
+    point_ids_test = point_ids_encoded[idx_test]
 
     print("X_test.shape:", X_test.shape)
     print("y_test.shape:", y_test.shape)
@@ -57,7 +61,7 @@ def load_and_preprocess_data(path, batch_size=32):
 
     def to_tensor(x): return torch.tensor(x, dtype=torch.float32).unsqueeze(1)
     def to_label(y): return torch.tensor(y, dtype=torch.long)
-    def to_id(x): return torch.tensor(x, dtype=torch.long)
+    def to_id(x): return torch.tensor(np.array(x), dtype=torch.long)
 
     print(X_train.shape)
     print("to_tensor(X_train) shape:", to_tensor(X_train).shape)

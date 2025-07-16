@@ -10,7 +10,7 @@ from shapely.geometry import Point
 
 def extract_time_series_from_polygons(nc_path, filepath, crs_epsg=3035):
     polygons_gdf = gpd.read_file(filepath).to_crs(epsg=crs_epsg)
-    polygons_gdf = polygons_gdf.rename(columns={"id": "polygon_id"})
+    print("read polygons")
     if "Flight_Dat" in polygons_gdf.columns and "Flight_Date" not in polygons_gdf.columns:
         polygons_gdf = polygons_gdf.rename(columns={"Flight_Dat": "Flight_Date"})
 
@@ -31,6 +31,7 @@ def extract_time_series_from_polygons(nc_path, filepath, crs_epsg=3035):
 
         try:
             clipped = ds.rio.clip([polygon], crs=f"EPSG:{crs_epsg}", drop=True, invert=False)
+            print("Clipped polygon")
         except Exception as e:
             print(f"Fehler beim Clippen für Polygon {polygon_id}: {e}")
             continue
@@ -38,6 +39,8 @@ def extract_time_series_from_polygons(nc_path, filepath, crs_epsg=3035):
         try:
             di_data = clipped['di']
             ts_df = di_data.to_series().reset_index(name='di')
+            print("Turned df to series")
+            #ts_df = ts_df.drop_duplicates(subset=['time', 'x', 'y']).reset_index(drop=True)
 
             # Filter: ±6 Monate um Flight_Date
             start_date = flight_date - pd.DateOffset(months=12)
@@ -45,10 +48,9 @@ def extract_time_series_from_polygons(nc_path, filepath, crs_epsg=3035):
             ts_df = ts_df[(ts_df['time'] >= start_date) & (ts_df['time'] <= end_date)]
 
             if ts_df.empty:
-                print(f"Keine Daten im deefininerten Zeitraum Monate für Polygon {polygon_id}")
+                print(f"Keine Daten im defininerten Zeitraum Monate für Polygon {polygon_id}")
                 continue
 
-            ts_df['pixel_id'] = 'x' + ts_df['x'].astype(str) + '_y' + ts_df['y'].astype(str)
             ts_df['polygon_id'] = polygon_id
             ts_df['class'] = class_label
             ts_df['Flight_Date'] = flight_date
@@ -62,6 +64,7 @@ def extract_time_series_from_polygons(nc_path, filepath, crs_epsg=3035):
             # Filter nur die Punkte, die im Polygon liegen
             ts_df = ts_df[ts_df['point'].apply(lambda p: polygon.contains(p))]
             all_time_series.append(ts_df)
+            print(f"appended timeseries for polygon {polygon_id}")
 
         except Exception as e:
             print(f"Fehler beim Extrahieren für Polygon {polygon_id}: {e}")
@@ -91,15 +94,25 @@ def extract_time_series_from_polygon_folder(nc_path, polygon_folder, output_fold
 
     # Long Format speichern
     final_df = pd.concat(all_time_series, ignore_index=True)
+    final_df['pixel_id'] = pd.factorize(final_df['x'].astype(str) + "_" + final_df['y'].astype(str))[0]
+
+    print(f"Gesamtanzahl Zeilen: {len(final_df)}")
+    duplicates = final_df.duplicated(subset=['polygon_id', 'pixel_id', 'x', 'y', 'class', 'time_str'])
+    if duplicates.any():
+        print(f"Warnung: {duplicates.sum()} Duplikate im finalen DataFrame gefunden")
+
     long_csv = os.path.join(output_folder, "all_polygons_time_series_long_12months.csv")
     final_df.to_csv(long_csv, index=False)
 
+    try:
     # Wide Format erstellen
-    wide_df = final_df.pivot_table(
-        index=['polygon_id', 'pixel_id', 'x', 'y', 'class'],
-        columns='time_str',
-        values='di'
-    ).reset_index()
+        wide_df = final_df.pivot_table(
+            index=['polygon_id', 'pixel_id', 'x', 'y', 'class'],
+            columns='time_str',
+            values='di'
+        ).reset_index()
+
+        print(f"Successfully created wide format with {len(wide_df)} rows")
 
     # Flight_Date hinzufügen
     date_info = final_df[['polygon_id', 'Flight_Date']].drop_duplicates()
@@ -139,6 +152,8 @@ def extract_time_series_from_polygon_folder(nc_path, polygon_folder, output_fold
     interp_wide_csv = os.path.join(output_folder, "all_polygons_time_series_wide_interpolated_12months.csv")
     interp_df.to_csv(interp_wide_csv, index=False)
     print(f"Interpolierter Wide Table gespeichert.")
+    
+
 
 extract_time_series_from_polygon_folder(
     nc_path="data/DI_timeseries/di_diff_biweek_42_35k.nc",

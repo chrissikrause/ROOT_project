@@ -6,10 +6,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils.early_stopping import EarlyStopping
 import matplotlib.pyplot as plt
 import numpy as np
+import optuna
 
-def train_model(model, criterion, optimizer, train_loader, val_loader, input_length, num_epochs=30, log_dir="runs"):
+
+def train_model(model, criterion, optimizer, train_loader, val_loader, input_length, num_epochs=30, log_dir="runs", trial=None):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device) 
     writer = SummaryWriter(log_dir=log_dir)
-    input = torch.randn(1, 1, input_length)
+    input = torch.randn(1, 1, input_length).to(device)
     writer.add_graph(model, input)
 
     early_stopping = EarlyStopping(patience=5, monitor='val_loss')
@@ -19,6 +23,7 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
         model.train()
         train_loss = 0
         for X_batch, y_batch, idxs in train_loader:
+            X_batch, y_batch = X_batch.to(device), y_batch.to(device)
             optimizer.zero_grad()
             outputs = model(X_batch)
             loss = criterion(outputs, y_batch)
@@ -27,8 +32,7 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
             train_loss += loss.item()
         avg_train_loss = train_loss / len(train_loader)
         train_losses.append(avg_train_loss)
-        writer.add_scalar("Loss/train", loss.item(), epoch)
-            
+        writer.add_scalar("Loss/train", avg_train_loss, epoch)
 
         model.eval()
         val_loss = 0
@@ -37,6 +41,7 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
 
         with torch.no_grad():
             for X_batch, y_batch, idxs in val_loader:
+                X_batch, y_batch = X_batch.to(device), y_batch.to(device)
                 outputs = model(X_batch)
                 loss = criterion(outputs, y_batch)
                 val_loss += loss.item()
@@ -48,11 +53,19 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
         val_losses.append(avg_val_loss)
         
         val_accuracy = 100 * val_correct / val_total        
-        
-        early_stopping(avg_val_loss, model) # Specify val_loss/val_accuracy here again
+
+        # Early Stopping
+        early_stopping(avg_val_loss, model)
         if early_stopping.early_stop:
             print(f"Early stopping triggered at epoch {epoch}")
             break
+
+        # Optuna Pruning: Bricht trial ab, wenn vorherige Trials an der Epoche besser
+        if trial is not None:
+            trial.report(avg_val_loss, step=epoch)
+            if trial.should_prune():
+                print(f"Pruned at epoch {epoch}")
+                raise optuna.exceptions.TrialPruned()
 
         writer.add_scalar("Loss/val", avg_val_loss, epoch)
         writer.add_scalar("Accuracy/val", val_accuracy, epoch)
@@ -76,4 +89,5 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
     os.makedirs("output", exist_ok=True)
     plt.savefig("output/loss_epochs_val_test.png")
     plt.close()
+
     return model

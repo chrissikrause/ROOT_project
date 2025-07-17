@@ -101,25 +101,24 @@ def extract_time_series_from_polygon_folder(nc_path, polygon_folder, output_fold
     if duplicates.any():
         print(f"Warnung: {duplicates.sum()} Duplikate im finalen DataFrame gefunden")
 
-    long_csv = os.path.join(output_folder, "all_polygons_time_series_long_12months.csv")
+    long_csv = os.path.join(output_folder, "all_polygons_time_series_long_12months1.csv")
     final_df.to_csv(long_csv, index=False)
 
-    try:
     # Wide Format erstellen
-        wide_df = final_df.pivot_table(
-            index=['polygon_id', 'pixel_id', 'x', 'y', 'class'],
-            columns='time_str',
-            values='di'
-        ).reset_index()
+    wide_df = final_df.pivot_table(
+        index=['polygon_id', 'pixel_id', 'x', 'y', 'class'],
+        columns='time_str',
+        values='di'
+    ).reset_index()
 
-        print(f"Successfully created wide format with {len(wide_df)} rows")
+    print(f"Successfully created wide format with {len(wide_df)} rows")
 
     # Flight_Date hinzufügen
     date_info = final_df[['polygon_id', 'Flight_Date']].drop_duplicates()
     wide_df = wide_df.merge(date_info, on='polygon_id', how='left')
 
     # Speichern der "rohen" Wide-Tabelle (mit NaNs)
-    raw_wide_csv = os.path.join(output_folder, "all_polygons_time_series_wide_raw_12months.csv")
+    raw_wide_csv = os.path.join(output_folder, "all_polygons_time_series_wide_raw_12months1.csv")
     wide_df.to_csv(raw_wide_csv, index=False)
     print(f"Wide Table (ohne Interpolation) gespeichert: {len(wide_df)} Zeilen")
 
@@ -149,7 +148,7 @@ def extract_time_series_from_polygon_folder(nc_path, polygon_folder, output_fold
     print(f"Zeilen nach Entfernen unvollständiger Zeitreihen: {len(interp_df)}")
 
     # Speichern
-    interp_wide_csv = os.path.join(output_folder, "all_polygons_time_series_wide_interpolated_12months.csv")
+    interp_wide_csv = os.path.join(output_folder, "all_polygons_time_series_wide_interpolated_12months1.csv")
     interp_df.to_csv(interp_wide_csv, index=False)
     print(f"Interpolierter Wide Table gespeichert.")
     

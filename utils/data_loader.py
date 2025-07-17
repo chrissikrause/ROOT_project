@@ -74,5 +74,18 @@ def load_and_preprocess_data(path, batch_size=32):
     val_loader   = DataLoader(val_dataset, batch_size=batch_size)
     test_loader  = DataLoader(test_dataset, batch_size=batch_size)
 
+    # Berechne class_counts aus Trainingslabels
+    unique, counts = np.unique(y_train, return_counts=True)
+    class_counts = np.zeros(len(unique))
+    class_counts[unique] = counts 
+    
+    # Berechne class_weights
+    total = class_counts.sum()
+    num_classes = len(class_counts)
+    class_weights = [total / (num_classes * c) for c in class_counts]
+    
+    # Mach daraus einen Tensor
+    weights = torch.tensor(class_weights, dtype=torch.float32)
 
-    return train_loader, val_loader, test_loader, X_train.shape[1]
+
+    return train_loader, val_loader, test_loader, X_train.shape[1], weights

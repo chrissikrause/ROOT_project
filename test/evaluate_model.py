@@ -6,8 +6,11 @@ import os
 import numpy as np
 import pandas as pd
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 def evaluate_model(model, test_loader, save_path="output/confusion_matrix_test.png"):
-    model.load_state_dict(torch.load('best_model.pth'))
+    model.load_state_dict(torch.load('best_model.pth', map_location=device))
+    model.to(device)
     model.eval()
     test_correct = 0
     test_total = 0
@@ -17,6 +20,7 @@ def evaluate_model(model, test_loader, save_path="output/confusion_matrix_test.p
 
     with torch.no_grad():
         for X_batch, y_batch, idxs in test_loader:
+            X_batch, y_batch = X_batch.to(device), y_batch.to(device)
             outputs = model(X_batch)
             _, predicted = torch.max(outputs, 1)
             test_total += y_batch.size(0)

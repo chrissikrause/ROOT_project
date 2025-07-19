@@ -2,3 +2,25 @@ data/DI_timeseries/di_diff_biweek_42_35k.nc
 runs
 best_model.pth
 
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environments
+venv*/
+.env/
+
+# VS Code config
+.vscode/
+
+# Output files
+*.npy
+*.png
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+

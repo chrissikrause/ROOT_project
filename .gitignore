@@ -1,6 +1,7 @@
 data/DI_timeseries/di_diff_biweek_42_35k.nc
 runs
 best_model.pth
+output/
 
 # Byte-compiled / cache files
 __pycache__/

@@ -2,6 +2,7 @@ data/DI_timeseries/di_diff_biweek_42_35k.nc
 runs
 best_model.pth
 output/
+optuna_results.csv
 
 # Byte-compiled / cache files
 __pycache__/

@@ -1,5 +1,5 @@
 import torch
-from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.metrics import confusion_matrix, classification_report, precision_score, recall_score, f1_score
 import seaborn as sns
 import matplotlib.pyplot as plt
 import os
@@ -8,8 +8,15 @@ import pandas as pd
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def evaluate_model(model, test_loader, save_path="output/confusion_matrix_test.png"):
-    model.load_state_dict(torch.load('best_model.pth', map_location=device))
+
+def evaluate_model(model, test_loader, trial_number, output_dir="output"):
+    # If trial_number is not provided, read it from file
+    if trial_number is None:
+        with open("output/best_trial_number.txt", "r") as f:
+            trial_number = int(f.read().strip())
+    
+    best_model_path = f"output/trial_{trial_number}/best_model_trial_{trial_number}.pth"
+    model.load_state_dict(torch.load(best_model_path, map_location=device))
     model.to(device)
     model.eval()
     test_correct = 0
@@ -42,6 +49,11 @@ def evaluate_model(model, test_loader, save_path="output/confusion_matrix_test.p
     test_accuracy = 100 * test_correct / test_total
     print(f"Test Accuracy: {test_accuracy:.2f}%")
 
+    # Speicherpfade pro Trial
+    trial_output_dir = os.path.join(output_dir, f"trial_{trial_number}")
+    os.makedirs(trial_output_dir, exist_ok=True)
+
+
     # Speichern der vollständigen Testergebnisse
     os.makedirs("output", exist_ok=True)
     results_df = pd.DataFrame({
@@ -49,16 +61,32 @@ def evaluate_model(model, test_loader, save_path="output/confusion_matrix_test.p
         'true_class': all_labels,
         'predicted_class': all_preds
     })
-    results_df.to_csv("output/test_predictions.csv", index=False)
+    results_df.to_csv(os.path.join(trial_output_dir, "test_predictions.csv"), index=False)
     print("Gesamte Test-Predictions gespeichert in output/test_predictions.csv")
 
     # Speichern der Fehlklassifizierungen
     misclassified_df = pd.DataFrame(misclassified_records)
-    misclassified_df.to_csv("output/misclassified_points.csv", index=False)
+    misclassified_df.to_csv(os.path.join(trial_output_dir, "misclassified_points.csv"), index=False)
     print("Fehlklassifizierte Beispiele gespeichert in output/misclassified_points.csv")
 
     # Klassifikationsbericht
     print(classification_report(all_labels, all_preds))
+
+    # Precision, Recall und F1 berechnen
+    precision = precision_score(all_labels, all_preds, average="weighted", zero_division=0)
+    recall = recall_score(all_labels, all_preds, average="weighted", zero_division=0)
+    f1 = f1_score(all_labels, all_preds, average="weighted", zero_division=0)
+
+    metrics = {
+        "accuracy": test_accuracy / 100,
+        "precision": precision,
+        "recall": recall,
+        "f1_score": f1
+    }
+    with open(os.path.join(trial_output_dir, "test_metrics.json"), "w") as f:
+        json.dump(metrics, f, indent=2)
+    print("Metriken gespeichert in output/test_metrics.json")
+
 
     # Konfusionsmatrix
     cm = confusion_matrix(all_labels, all_preds)
@@ -71,5 +99,5 @@ def evaluate_model(model, test_loader, save_path="output/confusion_matrix_test.p
     plt.ylabel('True')
     plt.title('Confusion Matrix')
     plt.tight_layout()
-    plt.savefig(save_path)
+    plt.savefig(os.path.join(trial_output_dir, "confusion_matrix_test.png"))
 

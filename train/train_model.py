@@ -9,14 +9,20 @@ import numpy as np
 import optuna
 
 
-def train_model(model, criterion, optimizer, train_loader, val_loader, input_length, num_epochs=30, log_dir="runs", trial=None):
+def train_model(model, criterion, optimizer, train_loader, val_loader, input_length, num_epochs, log_dir="runs", trial=None, scheduler=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device) 
-    writer = SummaryWriter(log_dir=log_dir)
-    input = torch.randn(1, 1, input_length).to(device)
-    writer.add_graph(model, input)
 
-    early_stopping = EarlyStopping(patience=5, monitor='val_loss')
+    # Trial-spezifische Pfade
+    trial_number = trial.number if trial is not None else "manual"
+    trial_output_dir = os.path.join("output", f"trial_{trial_number}")
+    os.makedirs(trial_output_dir, exist_ok=True)
+
+    writer = SummaryWriter(log_dir=os.path.join(log_dir, f"trial_{trial_number}"))
+    dummy_input = torch.randn(1, 1, input_length).to(device)
+    writer.add_graph(model, dummy_input)
+
+    early_stopping = EarlyStopping(patience=5, path=os.path.join(trial_output_dir, f"best_model_trial_{trial_number}.pth"), monitor='val_loss')
     train_losses, val_losses = [], []
 
     for epoch in range(num_epochs):
@@ -30,9 +36,14 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
+
+        if scheduler is not None:
+            scheduler.step()
         avg_train_loss = train_loss / len(train_loader)
         train_losses.append(avg_train_loss)
         writer.add_scalar("Loss/train", avg_train_loss, epoch)
+
+        
 
         model.eval()
         val_loss = 0
@@ -71,11 +82,11 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
         writer.add_scalar("Accuracy/val", val_accuracy, epoch)
         print(f"Epoch [{epoch+1}/{num_epochs}] | Val Loss: {avg_val_loss:.4f} | Val Acc: {val_accuracy:.2f}%")
 
-        np.save("output/train_losses.npy", train_losses)
-        np.save("output/val_losses.npy", val_losses)
-
     writer.close()
 
+    np.save(os.path.join(trial_output_dir, "train_losses.npy"), train_losses)
+    np.save(os.path.join(trial_output_dir, "val_losses.npy"), val_losses)
+    
     # Plot train + val loss
     plt.figure(figsize=(8,6))
     plt.plot(range(1, len(train_losses)+1), train_losses, label='Train Loss')
@@ -85,9 +96,7 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
     plt.title('Train and Validation Loss over Epochs')
     plt.legend()
     plt.grid(True)
-
-    os.makedirs("output", exist_ok=True)
-    plt.savefig("output/loss_epochs_val_test.png")
+    plt.savefig(os.path.join(trial_output_dir, "loss_epochs_val_test.png"))
     plt.close()
 
     return model

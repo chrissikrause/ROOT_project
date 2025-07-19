@@ -1,8 +1,8 @@
 import torch
 import numpy as np
 class EarlyStopping:
-    def __init__(self, patience=7, verbose=True, delta=0.001,
-                 path='best_model.pth', monitor='val_loss', trace_func=print):
+    def __init__(self, path, patience, verbose=True, delta=0.001,
+                 monitor='val_loss', trace_func=print):
         self.patience = patience
         self.verbose = verbose
         self.counter = 0

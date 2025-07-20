@@ -7,7 +7,7 @@ import sys
 import json
 from sklearn.metrics import precision_score, recall_score, f1_score
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-print("sys.path:", sys.path)
+
 
 from models.temporal_cnn import TemporalCNN
 from utils.data_loader import load_and_preprocess_data
@@ -22,7 +22,7 @@ def objective(trial):
 
     # Load data
     train_loader, val_loader, _, input_length, weights = load_and_preprocess_data("data/extracted_DI_polygons/all_polygons_time_series_wide_interpolated_6months.csv")
-
+    print(f"Weights: {weights}")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     weights = weights.to(device)
 
@@ -96,7 +96,9 @@ def objective(trial):
 
     # Ergebnis-Logging
     trial_id = trial.number
-    os.makedirs("output/trials", exist_ok=True)
+    output_folder = f"output/weights/6months/trials/trial_{trial_id}"
+    os.makedirs(output_folder, exist_ok=True)
+
     summary = {
         "trial_number": trial_id,
         "value": avg_val_loss,
@@ -107,7 +109,7 @@ def objective(trial):
         "params": trial.params,
     }
     
-    with open(f"output/trials/trial_{trial_id}_summary.json", "w") as f:
+    with open(os.path.join(output_folder, f"trial_{trial_id}_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
 
     
@@ -124,8 +126,8 @@ if __name__ == "__main__":
     best_trial_number = best_trial.number
     best_params = best_trial.params
 
-    os.makedirs("output", exist_ok=True)
-    with open("output/best_trial_number.txt", "w") as f:
+    os.makedirs("output/weights/6months/trials/", exist_ok=True)
+    with open("output/weights/6months/trials/best_trial_number.txt", "w") as f:
         f.write(str(best_trial_number))
 
     print("Beste Parameter:")
@@ -149,7 +151,7 @@ if __name__ == "__main__":
     )
 
     # Pfad zum besten Modell (früher gespeichert in train_model mit EarlyStopping)
-    best_model_path = f"output/trial_{best_trial_number}/best_model_trial_{best_trial_number}.pth"
+    best_model_path = f"output/weights/6months/trials/trial_{best_trial_number}/best_model_trial_{best_trial_number}.pth"
     model.load_state_dict(torch.load(best_model_path, map_location="cpu"))
 
     # Testen

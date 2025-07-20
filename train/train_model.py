@@ -15,7 +15,7 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
 
     # Trial-spezifische Pfade
     trial_number = trial.number if trial is not None else "manual"
-    trial_output_dir = os.path.join("output", f"trial_{trial_number}")
+    trial_output_dir = os.path.join("output/weights/6months/trials/", f"trial_{trial_number}")
     os.makedirs(trial_output_dir, exist_ok=True)
 
     writer = SummaryWriter(log_dir=os.path.join(log_dir, f"trial_{trial_number}"))

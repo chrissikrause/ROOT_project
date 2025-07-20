@@ -43,8 +43,8 @@ def extract_time_series_from_polygons(nc_path, filepath, crs_epsg=3035):
             #ts_df = ts_df.drop_duplicates(subset=['time', 'x', 'y']).reset_index(drop=True)
 
             # Filter: ±6 Monate um Flight_Date
-            start_date = flight_date - pd.DateOffset(months=12)
-            end_date = flight_date + pd.DateOffset(months=12)
+            start_date = flight_date - pd.DateOffset(months=6)
+            end_date = flight_date + pd.DateOffset(months=6)
             ts_df = ts_df[(ts_df['time'] >= start_date) & (ts_df['time'] <= end_date)]
 
             if ts_df.empty:
@@ -101,7 +101,7 @@ def extract_time_series_from_polygon_folder(nc_path, polygon_folder, output_fold
     if duplicates.any():
         print(f"Warnung: {duplicates.sum()} Duplikate im finalen DataFrame gefunden")
 
-    long_csv = os.path.join(output_folder, "all_polygons_time_series_long_12months1.csv")
+    long_csv = os.path.join(output_folder, "all_polygons_time_series_long_6months1.csv")
     final_df.to_csv(long_csv, index=False)
 
     # Wide Format erstellen
@@ -118,7 +118,7 @@ def extract_time_series_from_polygon_folder(nc_path, polygon_folder, output_fold
     wide_df = wide_df.merge(date_info, on='polygon_id', how='left')
 
     # Speichern der "rohen" Wide-Tabelle (mit NaNs)
-    raw_wide_csv = os.path.join(output_folder, "all_polygons_time_series_wide_raw_12months1.csv")
+    raw_wide_csv = os.path.join(output_folder, "all_polygons_time_series_wide_raw_6months1.csv")
     wide_df.to_csv(raw_wide_csv, index=False)
     print(f"Wide Table (ohne Interpolation) gespeichert: {len(wide_df)} Zeilen")
 
@@ -148,7 +148,7 @@ def extract_time_series_from_polygon_folder(nc_path, polygon_folder, output_fold
     print(f"Zeilen nach Entfernen unvollständiger Zeitreihen: {len(interp_df)}")
 
     # Speichern
-    interp_wide_csv = os.path.join(output_folder, "all_polygons_time_series_wide_interpolated_12months1.csv")
+    interp_wide_csv = os.path.join(output_folder, "all_polygons_time_series_wide_interpolated_6months1.csv")
     interp_df.to_csv(interp_wide_csv, index=False)
     print(f"Interpolierter Wide Table gespeichert.")
     

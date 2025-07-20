@@ -5,17 +5,18 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 import pandas as pd
+import json
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def evaluate_model(model, test_loader, trial_number, output_dir="output"):
+def evaluate_model(model, test_loader, trial_number, output_dir="output/weights/6months/trials"):
     # If trial_number is not provided, read it from file
     if trial_number is None:
-        with open("output/best_trial_number.txt", "r") as f:
+        with open("output/weights/6months/trials/best_trial_number.txt", "r") as f:
             trial_number = int(f.read().strip())
     
-    best_model_path = f"output/trial_{trial_number}/best_model_trial_{trial_number}.pth"
+    best_model_path = f"output/weights/6months/trials/trial_{trial_number}/best_model_trial_{trial_number}.pth"
     model.load_state_dict(torch.load(best_model_path, map_location=device))
     model.to(device)
     model.eval()

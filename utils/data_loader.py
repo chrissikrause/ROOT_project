@@ -30,8 +30,9 @@ def load_and_preprocess_data(path, batch_size=32):
 
     X = df[time_cols].values
     y = df['class'].values - 1
-    # Keep pixel_id as string
-    point_ids = df['pixel_id'].astype(str)
+    
+    # Keep pixel_id 
+    point_ids = df['pixel_id_num'].values
 
     # Convert string pixel_ids to integer-encoded labels
     point_ids_encoded, uniques = pd.factorize(point_ids)
@@ -49,9 +50,23 @@ def load_and_preprocess_data(path, batch_size=32):
     X_val, y_val = X[idx_val], y[idx_val]
     X_test, y_test = X[idx_test], y[idx_test]
 
-    point_ids_train = point_ids_encoded[idx_train]
-    point_ids_val = point_ids_encoded[idx_val]
-    point_ids_test = point_ids_encoded[idx_test]
+    def print_label_distribution(name, y):
+        unique, counts = np.unique(y, return_counts=True)
+        print(f"{name} Label Distribution:")
+        for u, c in zip(unique, counts):
+            print(f"  Klasse {u}: {c}")
+        print()
+        
+    '''
+    print_label_distribution("Train", y_train)
+    print_label_distribution("Val", y_val)
+    print_label_distribution("Test", y_test)
+    '''
+
+
+    point_ids_train = point_ids[idx_train]
+    point_ids_val = point_ids[idx_val]
+    point_ids_test = point_ids[idx_test]
 
     print("X_test.shape:", X_test.shape)
     print("y_test.shape:", y_test.shape)

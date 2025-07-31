@@ -10,16 +10,19 @@ import json
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def evaluate_model(model, test_loader, trial_number, output_dir="output/weights/6months/trials"):
+def evaluate_model(model, test_loader, output_dir, trial_number):
     # If trial_number is not provided, read it from file
     if trial_number is None:
-        with open("output/weights/6months/trials/best_trial_number.txt", "r") as f:
+        with open("output/weights/12months/trials/best_trial_number.txt", "r") as f:
             trial_number = int(f.read().strip())
-    
-    best_model_path = f"output/weights/6months/trials/trial_{trial_number}/best_model_trial_{trial_number}.pth"
+    trial_output_dir = os.path.join(output_dir, f"trial_{trial_number}")
+    os.makedirs(trial_output_dir, exist_ok=True)
+
+    best_model_path = os.path.join(trial_output_dir, f"best_model_trial_{trial_number}.pth")
     model.load_state_dict(torch.load(best_model_path, map_location=device))
     model.to(device)
     model.eval()
+
     test_correct = 0
     test_total = 0
     all_preds, all_labels = [], []
@@ -50,20 +53,15 @@ def evaluate_model(model, test_loader, trial_number, output_dir="output/weights/
     test_accuracy = 100 * test_correct / test_total
     print(f"Test Accuracy: {test_accuracy:.2f}%")
 
-    # Speicherpfade pro Trial
-    trial_output_dir = os.path.join(output_dir, f"trial_{trial_number}")
-    os.makedirs(trial_output_dir, exist_ok=True)
-
-
-    # Speichern der vollständigen Testergebnisse
-    os.makedirs("output", exist_ok=True)
+    # Speichern der Ergebnisse
     results_df = pd.DataFrame({
         'point_id': all_ids,
         'true_class': all_labels,
         'predicted_class': all_preds
     })
     results_df.to_csv(os.path.join(trial_output_dir, "test_predictions.csv"), index=False)
-    print("Gesamte Test-Predictions gespeichert in output/test_predictions.csv")
+    print(f"Test-Predictions gespeichert in {trial_output_dir}/test_predictions.csv")
+
 
     # Speichern der Fehlklassifizierungen
     misclassified_df = pd.DataFrame(misclassified_records)
@@ -86,7 +84,7 @@ def evaluate_model(model, test_loader, trial_number, output_dir="output/weights/
     }
     with open(os.path.join(trial_output_dir, "test_metrics.json"), "w") as f:
         json.dump(metrics, f, indent=2)
-    print("Metriken gespeichert in output/test_metrics.json")
+    print("Metriken gespeichert in test_metrics.json")
 
 
     # Konfusionsmatrix

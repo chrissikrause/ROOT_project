@@ -9,14 +9,16 @@ import numpy as np
 import optuna
 
 
-def train_model(model, criterion, optimizer, train_loader, val_loader, input_length, num_epochs, log_dir="runs", trial=None, scheduler=None):
+def train_model(model, criterion, optimizer, train_loader, val_loader, input_length, num_epochs,
+                log_dir="runs", trial=None, scheduler=None, output_dir="output/weights"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device) 
 
     # Trial-spezifische Pfade
     trial_number = trial.number if trial is not None else "manual"
-    trial_output_dir = os.path.join("output/weights/6months/trials/", f"trial_{trial_number}")
+    trial_output_dir = os.path.join(output_dir, "trials", f"trial_{trial_number}")
     os.makedirs(trial_output_dir, exist_ok=True)
+
 
     writer = SummaryWriter(log_dir=os.path.join(log_dir, f"trial_{trial_number}"))
     dummy_input = torch.randn(1, 1, input_length).to(device)

@@ -21,7 +21,7 @@ def objective(trial):
     dropout = trial.suggest_float("dropout", 0.1, 0.5)
 
     # Load data
-    train_loader, val_loader, _, input_length, weights = load_and_preprocess_data("data/extracted_DI_polygons/all_polygons_time_series_wide_interpolated_6months.csv")
+    train_loader, val_loader, _, input_length, weights = load_and_preprocess_data("data/extracted_DI_polygons/all_polygons_time_series_wide_interpolated_12months.csv")
     print(f"Weights: {weights}")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     weights = weights.to(device)
@@ -50,7 +50,7 @@ def objective(trial):
         val_loader,
         input_length,
         num_epochs=num_epochs,
-        log_dir=f"runs/trial_{trial.number}",
+        log_dir=f"runs/12months/trial_{trial.number}",
         trial=trial,
         scheduler=scheduler
     )
@@ -96,7 +96,7 @@ def objective(trial):
 
     # Ergebnis-Logging
     trial_id = trial.number
-    output_folder = f"output/weights/6months/trials/trial_{trial_id}"
+    output_folder = f"output/weights/12months/trials/trial_{trial_id}"
     os.makedirs(output_folder, exist_ok=True)
 
     summary = {
@@ -126,8 +126,8 @@ if __name__ == "__main__":
     best_trial_number = best_trial.number
     best_params = best_trial.params
 
-    os.makedirs("output/weights/6months/trials/", exist_ok=True)
-    with open("output/weights/6months/trials/best_trial_number.txt", "w") as f:
+    os.makedirs("output/weights/12months/trials/", exist_ok=True)
+    with open("output/weights/12months/trials/best_trial_number.txt", "w") as f:
         f.write(str(best_trial_number))
 
     print("Beste Parameter:")
@@ -139,7 +139,7 @@ if __name__ == "__main__":
 
     # Daten neu laden
     _, _, test_loader, input_length, _ = load_and_preprocess_data(
-        "data/extracted_DI_polygons/all_polygons_time_series_wide_interpolated_6months.csv"
+        "data/extracted_DI_polygons/all_polygons_time_series_wide_interpolated_12months.csv"
     )
 
     # Modell rekonstruieren
@@ -151,7 +151,7 @@ if __name__ == "__main__":
     )
 
     # Pfad zum besten Modell (früher gespeichert in train_model mit EarlyStopping)
-    best_model_path = f"output/weights/6months/trials/trial_{best_trial_number}/best_model_trial_{best_trial_number}.pth"
+    best_model_path = f"output/weights/12months/trials/trial_{best_trial_number}/best_model_trial_{best_trial_number}.pth"
     model.load_state_dict(torch.load(best_model_path, map_location="cpu"))
 
     # Testen

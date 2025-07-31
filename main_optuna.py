@@ -1,3 +1,8 @@
+'''
+This script uses the Optuna framework for hyperparameter optimization of a Temporal CNN
+to classify DI-time series
+'''
+
 import optuna
 import torch
 import torch.nn as nn
@@ -8,28 +13,30 @@ import json
 from sklearn.metrics import precision_score, recall_score, f1_score
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-
 from models.temporal_cnn import TemporalCNN
 from utils.data_loader import load_and_preprocess_data
 from train.train_model import train_model
 from test.evaluate_model import evaluate_model
 
 def objective(trial):
-    # Hyperparameter-Suchraum
+    # Define hyperparameter search
     lr = trial.suggest_float("lr", 1e-5, 1e-2, log=True)
     num_filters = trial.suggest_categorical("num_filters", [16, 32, 64, 128])
     dropout = trial.suggest_float("dropout", 0.1, 0.5)
 
     # Load data
-    train_loader, val_loader, _, input_length, weights = load_and_preprocess_data("data/extracted_DI_polygons/all_polygons_time_series_wide_interpolated_12months.csv")
+    train_loader, val_loader, _, input_length, weights = load_and_preprocess_data("data/extracted_DI_polygons/all_polygons_time_series_wide_interpolated_6months.csv")
     print(f"Weights: {weights}")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     weights = weights.to(device)
 
     # Build model
     model = TemporalCNN(input_channels=1, num_classes=3, num_filters=num_filters, dropout=dropout).to(device)
-    
+
+    # Weighted Cross Entropy Loss
     criterion = nn.CrossEntropyLoss(weight=weights)
+
+    # Test different Optimizer
     optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "SGD", "RMSprop"])
     if optimizer_name == "Adam":
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -42,6 +49,7 @@ def objective(trial):
     num_epochs = 50
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 
+    # Train model
     trained_model = train_model(
         model,
         criterion,
@@ -50,7 +58,7 @@ def objective(trial):
         val_loader,
         input_length,
         num_epochs=num_epochs,
-        log_dir=f"runs/12months/trial_{trial.number}",
+        log_dir=f"runs/trial_{trial.number}",
         trial=trial,
         scheduler=scheduler
     )
@@ -75,7 +83,7 @@ def objective(trial):
     avg_val_loss = val_loss / len(val_loader)
     val_acc = val_correct / val_total
 
-    # Zusätzliche Metriken berechnen
+    # Calculate additional metrics
     all_preds_list = []
     all_labels_list = []
 
@@ -88,15 +96,15 @@ def objective(trial):
             all_preds_list.extend(predicted.cpu().numpy())
             all_labels_list.extend(y_batch.cpu().numpy())
 
-    # Berechne Precision, Recall, F1
+    # Calculate Precision, Recall, F1
     precision = precision_score(all_labels_list, all_preds_list, average="weighted", zero_division=0)
     recall = recall_score(all_labels_list, all_preds_list, average="weighted", zero_division=0)
     f1 = f1_score(all_labels_list, all_preds_list, average="weighted", zero_division=0)
 
 
-    # Ergebnis-Logging
+    # Result-Logging
     trial_id = trial.number
-    output_folder = f"output/weights/12months/trials/trial_{trial_id}"
+    output_folder = f"output/weights/6months/trials/trial_{trial_id}"
     os.makedirs(output_folder, exist_ok=True)
 
     summary = {
@@ -126,8 +134,8 @@ if __name__ == "__main__":
     best_trial_number = best_trial.number
     best_params = best_trial.params
 
-    os.makedirs("output/weights/12months/trials/", exist_ok=True)
-    with open("output/weights/12months/trials/best_trial_number.txt", "w") as f:
+    os.makedirs("output/weights/6months/trials/", exist_ok=True)
+    with open("output/weights/6months/trials/best_trial_number.txt", "w") as f:
         f.write(str(best_trial_number))
 
     print("Beste Parameter:")
@@ -137,12 +145,12 @@ if __name__ == "__main__":
     df = study.trials_dataframe()
     df.to_csv("optuna_results.csv", index=False)
 
-    # Daten neu laden
+    # Load test data
     _, _, test_loader, input_length, _ = load_and_preprocess_data(
-        "data/extracted_DI_polygons/all_polygons_time_series_wide_interpolated_12months.csv"
+        "data/extracted_DI_polygons/all_polygons_time_series_wide_interpolated_6months.csv"
     )
 
-    # Modell rekonstruieren
+    # Reconstruct best model
     model = TemporalCNN(
         input_channels=1,
         num_classes=3,
@@ -150,9 +158,8 @@ if __name__ == "__main__":
         dropout=best_params["dropout"]
     )
 
-    # Pfad zum besten Modell (früher gespeichert in train_model mit EarlyStopping)
-    best_model_path = f"output/weights/12months/trials/trial_{best_trial_number}/best_model_trial_{best_trial_number}.pth"
+    best_model_path = f"output/weights/6months/trials/trial_{best_trial_number}/best_model_trial_{best_trial_number}.pth"
     model.load_state_dict(torch.load(best_model_path, map_location="cpu"))
 
-    # Testen
+    # Test model
     evaluate_model(model, test_loader, trial_number=best_trial_number, output_dir="output")

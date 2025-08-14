@@ -9,22 +9,21 @@ import numpy as np
 import optuna
 
 
-def train_model(model, criterion, optimizer, train_loader, val_loader, input_length, num_epochs,
-                log_dir="runs", trial=None, scheduler=None, output_dir="output/weights"):
+def train_model(model, criterion, optimizer, train_loader, val_loader, input_length, num_epochs, output_dir,
+                log_dir="runs", trial=None, scheduler=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device) 
 
     # Trial-spezifische Pfade
     trial_number = trial.number if trial is not None else "manual"
-    trial_output_dir = os.path.join(output_dir, "trials", f"trial_{trial_number}")
-    os.makedirs(trial_output_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
 
     writer = SummaryWriter(log_dir=os.path.join(log_dir, f"trial_{trial_number}"))
     dummy_input = torch.randn(1, 1, input_length).to(device)
     writer.add_graph(model, dummy_input)
 
-    early_stopping = EarlyStopping(patience=5, path=os.path.join(trial_output_dir, f"best_model_trial_{trial_number}.pth"), monitor='val_loss')
+    early_stopping = EarlyStopping(patience=5, path=os.path.join(output_dir, "trials", f"trial_{trial_number}", f"trial_{trial_number}.pth"), monitor='val_loss')
     train_losses, val_losses = [], []
 
     for epoch in range(num_epochs):
@@ -86,8 +85,8 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
 
     writer.close()
 
-    np.save(os.path.join(trial_output_dir, "train_losses.npy"), train_losses)
-    np.save(os.path.join(trial_output_dir, "val_losses.npy"), val_losses)
+    np.save(os.path.join(output_dir, "trials", f"trial_{trial_number}", "train_losses.npy"), train_losses)
+    np.save(os.path.join(output_dir, "trials", f"trial_{trial_number}", "val_losses.npy"), val_losses)
     
     # Plot train + val loss
     plt.figure(figsize=(8,6))
@@ -98,7 +97,7 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, input_len
     plt.title('Train and Validation Loss over Epochs')
     plt.legend()
     plt.grid(True)
-    plt.savefig(os.path.join(trial_output_dir, "loss_epochs_val_test.png"))
+    plt.savefig(os.path.join(output_dir, "trials", f"trial_{trial_number}", "loss_epochs_val_test.png"))
     plt.close()
 
     return model

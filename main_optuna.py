@@ -33,7 +33,7 @@ def objective(trial, train_loader, val_loader, input_length, weights, output_dir
     model = TemporalCNN(input_channels=1, num_classes=3, num_filters=num_filters, dropout=dropout).to(device)
 
     # Weighted Cross Entropy Loss
-    criterion = nn.CrossEntropyLoss(weight=weights)
+    criterion = nn.CrossEntropyLoss(weight=None) # weights
 
     # Test different Optimizer
     optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "SGD", "RMSprop"])
@@ -48,8 +48,8 @@ def objective(trial, train_loader, val_loader, input_length, weights, output_dir
     num_epochs = 50
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 
-    trial_run_dir = os.path.join(output_dir, time_tag, "trials", f"trial_{trial.number}")
-    os.makedirs(trial_run_dir, exist_ok=True)
+    trial_dir = os.path.join(output_dir, "trials", f"trial_{trial.number}")
+    os.makedirs(trial_dir, exist_ok=True)
 
     # Train model
     trained_model = train_model(
@@ -60,10 +60,11 @@ def objective(trial, train_loader, val_loader, input_length, weights, output_dir
         val_loader,
         input_length,
         num_epochs=num_epochs,
-        log_dir=os.path.join(trial_run_dir, "tensorboard"),
+        output_dir=output_dir,
+        log_dir=os.path.join(trial_dir, "tensorboard"),
         trial=trial,
         scheduler=scheduler,
-        output_dir="output/weights/6months" 
+        
     )
 
     # Get vall acc and loss
@@ -111,7 +112,7 @@ def objective(trial, train_loader, val_loader, input_length, weights, output_dir
         "params": trial.params,
     }
     
-    with open(os.path.join(trial_run_dir, f"trial_{trial.number}_summary.json"), "w") as f:
+    with open(os.path.join(trial_dir, f"trial_{trial.number}_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
 
     return avg_val_loss  # or: return 1.0 - val_acc
@@ -122,7 +123,10 @@ def objective(trial, train_loader, val_loader, input_length, weights, output_dir
 if __name__ == "__main__":
     time_tag = "6months"
     input_csv_path = f"data/extracted_DI_polygons/all_polygons_time_series_wide_interpolated_{time_tag}.csv"
-    output_dir = "output/weights6"
+
+    trial_dir = os.path.join(f"output/no_weights/{time_tag}/", "trials")
+    os.makedirs(trial_dir, exist_ok=True)
+
 
     # Data loading and preprocessing
     train_loader, val_loader, test_loader, input_length, weights, split_indices = load_and_preprocess_data(input_csv_path)
@@ -139,7 +143,7 @@ if __name__ == "__main__":
         val_loader=val_loader,
         input_length=input_length,
         weights=weights,
-        output_dir=output_dir,
+        output_dir=f"output/no_weights/{time_tag}/",
         time_tag=time_tag
     ),
     n_trials=50
@@ -149,8 +153,7 @@ if __name__ == "__main__":
     best_trial_number = best_trial.number
     best_params = best_trial.params
 
-    trial_dir = os.path.join(output_dir, time_tag, "trials")
-    os.makedirs(trial_dir, exist_ok=True)
+    
 
     with open(os.path.join(trial_dir, "best_trial_number.txt"), "w") as f:
         f.write(str(best_trial_number))
@@ -167,7 +170,7 @@ if __name__ == "__main__":
         dropout=best_params["dropout"]
     )
 
-    best_model_path = os.path.join(trial_dir, f"trial_{best_trial_number}", f"best_model_trial_{best_trial_number}.pth")
+    best_model_path = os.path.join(trial_dir, f"trial_{best_trial_number}", f"trial_{best_trial_number}.pth")
     model.load_state_dict(torch.load(best_model_path, map_location="cpu"))
 
-    evaluate_model(model, test_loader, trial_number=best_trial_number, output_dir=os.path.join(output_dir, time_tag))
+    evaluate_model(model, test_loader, trial_number=best_trial_number, output_dir=f"output/no_weights/{time_tag}/")

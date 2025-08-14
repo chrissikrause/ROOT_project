@@ -10,15 +10,15 @@ import json
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def evaluate_model(model, test_loader, output_dir, trial_number):
+def evaluate_model(model, test_loader, trial_number, output_dir):
     # If trial_number is not provided, read it from file
     if trial_number is None:
         with open("output/weights/12months/trials/best_trial_number.txt", "r") as f:
             trial_number = int(f.read().strip())
-    trial_output_dir = os.path.join(output_dir, f"trial_{trial_number}")
+    trial_output_dir = os.path.join(output_dir, "trials", f"trial_{trial_number}")
     os.makedirs(trial_output_dir, exist_ok=True)
 
-    best_model_path = os.path.join(trial_output_dir, f"best_model_trial_{trial_number}.pth")
+    best_model_path = os.path.join(trial_output_dir, f"trial_{trial_number}.pth")
     model.load_state_dict(torch.load(best_model_path, map_location=device))
     model.to(device)
     model.eval()

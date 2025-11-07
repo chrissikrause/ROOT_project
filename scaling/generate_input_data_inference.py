@@ -15,7 +15,7 @@ from dask.distributed import Client, LocalCluster
 import os
 from shapely.geometry import box
 
-WINDOW_SIZE = 12
+WINDOW_SIZE = 6
 
 
 def extract_all_ts_tile(tilenr):
@@ -109,11 +109,16 @@ def extract_all_ts_tile(tilenr):
         df["pixel_id"] = [f"{int(pixel_x[i])}_{int(pixel_y[i])}" for i in df["pixel"]]
         df["timestep"] = timestep
 
+        # --- Add relative timestep labels ---
+        relative_indices = np.arange(-WINDOW_SIZE, WINDOW_SIZE + 1)
+        relative_labels = [f"di_t{r:+d}".replace("+0", "0").replace("+", "+") for r in relative_indices]
+        df["relative_time"] = np.tile(relative_labels, len(pixel_ids))
+
         # --- Drop Hilfsindex ---
         df = df.drop(columns=["x", "y", "pixel"])
 
         # --- Keep order ---
-        df = df[["pixel_id", "timestep", "time", "di"]]
+        df = df[["pixel_id", "timestep", "time", "relative_time", "di"]]
 
         df_list.append(df)
         print(f"Extracted {len(df)} rows for timestep {timestep}")

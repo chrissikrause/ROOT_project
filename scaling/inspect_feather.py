@@ -29,7 +29,7 @@ print(f"\nErstes Pixel ID: {first_pixel_id}")
 # Zeitreihe für dieses Pixel extrahieren
 pixel_ts = df[df["pixel_id"] == first_pixel_id].sort_values("time")
 print(f"\nZeitreihe für Pixel {first_pixel_id}:")
-print(pixel_ts[["time", "di", "timestep"]])
+print(pixel_ts[["time", "relative_time", "di", "timestep"]])
 
 # Optional: Plot der Zeitreihe
 plt.figure(figsize=(10, 5))

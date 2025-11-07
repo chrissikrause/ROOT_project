@@ -15,7 +15,7 @@ from dask.distributed import Client, LocalCluster
 import os
 from shapely.geometry import box
 
-WINDOW_SIZE = 6
+WINDOW_SIZE = 12
 
 
 def extract_all_ts_tile(tilenr):

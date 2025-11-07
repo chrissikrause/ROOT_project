@@ -12,6 +12,7 @@ def load_and_preprocess_data(path, batch_size=32, split_path=None):
     df.replace(-2147483648.0, np.nan, inplace=True)
 
     time_cols = [col for col in df.columns if col.startswith('di_t')]
+    time_cols = sorted(time_cols, key=lambda x: int(re.findall(r'\d+', x)[0]))
     df = df[df['class'].isin([1, 2, 3])]
     df[time_cols] = df[time_cols].interpolate(axis=1).ffill(axis=1).bfill(axis=1)
 

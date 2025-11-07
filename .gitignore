@@ -1,4 +1,4 @@
-data/DI_timeseries/di_diff_biweek_42_35k.nc
+data/*
 runs
 best_model.pth
 output/
@@ -20,6 +20,7 @@ venv*/
 *.npy
 *.png
 *.log
+*.feather
 
 # OS generated files
 .DS_Store
